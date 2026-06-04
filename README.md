@@ -79,6 +79,9 @@ python main.py
 # Specify number of episodes
 python main.py --episodes 2000
 
+# Disable tqdm progress bar if you want plain logs only
+python main.py --no-tqdm
+
 # Auto-pick the best PyTorch backend: CUDA -> Apple MPS -> CPU
 python main.py --device auto
 
@@ -102,6 +105,8 @@ python main.py --render --no-train --checkpoint checkpoints/dqn_ep500.pt
 ```
 
 Note: checkpoints created before the recurrent/LSTM update are not compatible with the current model architecture. Train a fresh checkpoint after this change.
+
+Training shows a tqdm episode progress bar by default. The progress postfix and periodic logs include `ms/step`, the average wall-clock time per environment step, which helps compare CPU/MPS/CUDA and model-size changes.
 
 ## GPU Backend
 
@@ -140,4 +145,4 @@ rl_world/
 
 ## Hyperparameters
 
-All tunable in `src/config.py` — grid size, agent count, apple count, hunger decay, history length, LSTM size/layers, device backend, precision mode, epsilon schedule, L1/L2 regularization, learning rate, etc.
+All tunable in `src/config.py` — grid size, agent count, apple count, hunger decay, history length, LSTM size/layers, device backend, precision mode, tqdm usage, epsilon schedule, L1/L2 regularization, learning rate, etc.

@@ -57,6 +57,7 @@ class Config:
     checkpoint_every: int = 100  # save model every N episodes
     checkpoint_dir: str = "checkpoints"
     log_every: int = 10          # print console metrics every N episodes
+    use_tqdm: bool = True
 
     # ------------------------------------------------------------------ render
     cell_size: int = 32          # pixels per grid cell

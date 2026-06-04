@@ -53,6 +53,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Torch precision mode: auto, fp32, fp16, or bf16. Default: auto.",
     )
+    parser.add_argument(
+        "--no-tqdm",
+        action="store_true",
+        help="Disable tqdm progress bar and use plain periodic logs only.",
+    )
     # optional world overrides
     parser.add_argument("--grid-w",   type=int, default=None, help="Grid width.")
     parser.add_argument("--grid-h",   type=int, default=None, help="Grid height.")
@@ -75,6 +80,7 @@ def main() -> None:
     if args.fps      is not None: cfg.fps         = args.fps
     if args.device   is not None: cfg.device      = args.device
     if args.precision is not None: cfg.precision  = args.precision
+    if args.no_tqdm: cfg.use_tqdm = False
 
     print("=== RL Box World ===")
     print(f"  Grid       : {cfg.grid_width} x {cfg.grid_height}")
@@ -85,6 +91,7 @@ def main() -> None:
     print(f"  No-train   : {args.no_train}")
     print(f"  Device     : {cfg.device}")
     print(f"  Precision  : {cfg.precision}")
+    print(f"  TQDM       : {cfg.use_tqdm}")
     print(f"  Checkpoint : {args.checkpoint}")
     print()
 

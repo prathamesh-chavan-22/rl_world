@@ -12,6 +12,11 @@ from src.dqn import DQNAgent
 from src.history import SequenceHistory
 from src.world import GridWorld
 
+try:
+    from tqdm import tqdm
+except ImportError:  # pragma: no cover - exercised only when tqdm is absent
+    tqdm = None
+
 
 def run_training(
     cfg: Config,
@@ -52,6 +57,7 @@ def run_training(
     win_deaths: Deque[int]   = deque(maxlen=cfg.log_every)
     win_reward: Deque[float] = deque(maxlen=cfg.log_every)
     win_loss:   Deque[float] = deque(maxlen=cfg.log_every)
+    win_step_ms: Deque[float] = deque(maxlen=cfg.log_every)
 
     total_env_steps = 0
     recent_loss: Optional[float] = None
@@ -59,7 +65,14 @@ def run_training(
 
     start_time = time.time()
 
-    for episode in range(1, num_episodes + 1):
+    episode_iter = range(1, num_episodes + 1)
+    progress = None
+    if cfg.use_tqdm and tqdm is not None:
+        progress = tqdm(episode_iter, desc="Training", unit="ep")
+    else:
+        progress = episode_iter
+
+    for episode in progress:
         obs_list = world.reset()
         # obs_list is indexed in world.agents order
         agents = world.agents
@@ -70,8 +83,11 @@ def run_training(
         }
 
         ep_rewards: List[float] = []
+        ep_step_ms: List[float] = []
 
         while not world.is_done():
+            step_start = time.perf_counter()
+
             # --- collect actions for all alive agents ---
             actions = {}
             alive_agents = world.alive_agents()
@@ -119,6 +135,7 @@ def run_training(
                 dqn.step_epsilon()
 
             total_env_steps += 1
+            ep_step_ms.append((time.perf_counter() - step_start) * 1000.0)
 
             # --- optional render ---
             if renderer is not None:
@@ -146,8 +163,22 @@ def run_training(
         win_reward.append(ep_mean_reward)
         if recent_loss is not None:
             win_loss.append(recent_loss)
+        if ep_step_ms:
+            win_step_ms.append(sum(ep_step_ms) / len(ep_step_ms))
 
         recent_reward = ep_mean_reward
+        avg_step_ms_recent = sum(ep_step_ms) / len(ep_step_ms) if ep_step_ms else 0.0
+
+        if cfg.use_tqdm and tqdm is not None and hasattr(progress, "set_postfix"):
+            progress.set_postfix(
+                {
+                    "survive": summary["steps_survived"],
+                    "apples": summary["total_apples_eaten"],
+                    "rew": f"{ep_mean_reward:+.3f}",
+                    "ms/step": f"{avg_step_ms_recent:.2f}",
+                    "eps": f"{dqn.epsilon:.3f}",
+                }
+            )
 
         # --- console metrics ---
         if episode % cfg.log_every == 0:
@@ -156,6 +187,7 @@ def run_training(
             avg_deaths = sum(win_deaths) / len(win_deaths)
             avg_reward = sum(win_reward) / len(win_reward)
             avg_loss   = sum(win_loss)   / len(win_loss) if win_loss else 0.0
+            avg_step_ms = sum(win_step_ms) / len(win_step_ms) if win_step_ms else 0.0
             elapsed    = time.time() - start_time
 
             print(
@@ -165,6 +197,7 @@ def run_training(
                 f"deaths {avg_deaths:4.1f} | "
                 f"rew {avg_reward:+.3f} | "
                 f"loss {avg_loss:.4f} | "
+                f"{avg_step_ms:.2f} ms/step | "
                 f"ε {dqn.epsilon:.3f} | "
                 f"{elapsed:.0f}s"
             )

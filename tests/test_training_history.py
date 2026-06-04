@@ -50,3 +50,24 @@ def test_training_loop_uses_batched_action_selection(monkeypatch, tmp_path):
 
     assert batch_calls
     assert all(call_size > 0 for call_size in batch_calls)
+
+
+def test_training_log_reports_average_step_time(capsys, tmp_path):
+    cfg = Config()
+    cfg.device = "cpu"
+    cfg.precision = "fp32"
+    cfg.grid_width = 6
+    cfg.grid_height = 6
+    cfg.num_agents = 2
+    cfg.num_apples = 4
+    cfg.max_steps_per_episode = 2
+    cfg.min_buffer_size = 999
+    cfg.checkpoint_dir = str(tmp_path)
+    cfg.checkpoint_every = 100
+    cfg.log_every = 1
+    cfg.use_tqdm = False
+
+    run_training(cfg, num_episodes=1, render=False)
+
+    captured = capsys.readouterr()
+    assert "ms/step" in captured.out
