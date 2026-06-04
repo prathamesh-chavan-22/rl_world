@@ -98,17 +98,27 @@ class DQNAgent:
         self.epsilon = cfg.epsilon_start
 
     def act(self, state_seq: np.ndarray) -> int:
-        """Epsilon-greedy action selection from a 16-step sequence."""
-        if random.random() < self.epsilon:
-            return random.randrange(self.cfg.action_dim)
-        return self.act_greedy(state_seq)
+        """Epsilon-greedy action selection for a single sequence."""
+        return self.act_batch(np.expand_dims(state_seq, axis=0))[0]
 
     def act_greedy(self, state_seq: np.ndarray) -> int:
-        """Pure greedy action selection for evaluation."""
-        seq_t = torch.tensor(state_seq, dtype=torch.float32, device=self.device).unsqueeze(0)
+        """Pure greedy action selection for a single sequence."""
+        return self.act_greedy_batch(np.expand_dims(state_seq, axis=0))[0]
+
+    def act_batch(self, state_batch: np.ndarray) -> list[int]:
+        """Epsilon-greedy action selection for a batch of agent histories."""
+        actions = self.act_greedy_batch(state_batch)
+        for i in range(len(actions)):
+            if random.random() < self.epsilon:
+                actions[i] = random.randrange(self.cfg.action_dim)
+        return actions
+
+    def act_greedy_batch(self, state_batch: np.ndarray) -> list[int]:
+        """Pure greedy action selection for batched agent histories."""
+        seq_t = torch.tensor(state_batch, dtype=torch.float32, device=self.device)
         with torch.no_grad():
             q_vals = self.online_net(seq_t)
-        return int(q_vals.argmax(dim=1).item())
+        return [int(action) for action in q_vals.argmax(dim=1).tolist()]
 
     def step_epsilon(self) -> None:
         """Decay epsilon linearly."""

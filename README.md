@@ -9,6 +9,7 @@ A 2D discrete grid simulation where box agents (male/female) learn via a shared 
 - An agent **dies** (starves) when hunger reaches 0.
 - The episode ends when **all agents have starved** (civilization collapse) or the step cap is reached.
 - All agents share a single recurrent Q-network policy — learning is pooled across the whole population.
+- Action selection is batched: all alive agents' histories are stacked into one model call per environment step for better MPS/CUDA utilization.
 - Agents can only see **4 cells directly ahead** of them (not behind, not sideways).
 - Each decision uses the agent's last **64 timesteps** so it can learn short-term movement patterns.
 - Gender is a first-class field, structured for future reproduction mechanics.

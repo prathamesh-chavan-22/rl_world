@@ -33,3 +33,28 @@ def test_dqn_can_learn_from_sequence_transition():
 
     assert isinstance(loss, float)
     assert loss >= 0.0
+
+
+def test_dqn_returns_one_greedy_action_per_sequence_in_batch():
+    cfg = Config()
+    dqn = DQNAgent(cfg, device="cpu")
+    state_batch = np.zeros((4, cfg.history_len, cfg.rnn_input_dim), dtype=np.float32)
+
+    actions = dqn.act_greedy_batch(state_batch)
+
+    assert len(actions) == 4
+    assert all(isinstance(action, int) for action in actions)
+    assert all(0 <= action < cfg.action_dim for action in actions)
+
+
+def test_dqn_batched_epsilon_actions_are_valid_for_each_sequence():
+    cfg = Config()
+    dqn = DQNAgent(cfg, device="cpu")
+    dqn.epsilon = 1.0
+    state_batch = np.zeros((6, cfg.history_len, cfg.rnn_input_dim), dtype=np.float32)
+
+    actions = dqn.act_batch(state_batch)
+
+    assert len(actions) == 6
+    assert all(isinstance(action, int) for action in actions)
+    assert all(0 <= action < cfg.action_dim for action in actions)

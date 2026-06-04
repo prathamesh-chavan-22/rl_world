@@ -5,6 +5,8 @@ import time
 from collections import deque
 from typing import Deque, List, Optional
 
+import numpy as np
+
 from src.config import Config
 from src.dqn import DQNAgent
 from src.history import SequenceHistory
@@ -71,13 +73,20 @@ def run_training(
         while not world.is_done():
             # --- collect actions for all alive agents ---
             actions = {}
-            for agent in world.alive_agents():
-                state_seq = history_map[agent.id].as_array()
+            alive_agents = world.alive_agents()
+            if alive_agents:
+                state_batch = np.stack(
+                    [history_map[agent.id].as_array() for agent in alive_agents],
+                    axis=0,
+                )
                 if no_train:
-                    action = dqn.act_greedy(state_seq)
+                    batch_actions = dqn.act_greedy_batch(state_batch)
                 else:
-                    action = dqn.act(state_seq)
-                actions[agent.id] = action
+                    batch_actions = dqn.act_batch(state_batch)
+                actions = {
+                    agent.id: action
+                    for agent, action in zip(alive_agents, batch_actions)
+                }
 
             # --- step world ---
             next_obs_list, rewards, dones = world.step_with_eat_rewards(actions)
