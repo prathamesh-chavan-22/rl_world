@@ -18,9 +18,9 @@ class Config:
     hunger_eat_gain: float = 0.6 # hunger gained per apple eaten (capped at max)
 
     # ------------------------------------------------------------------ rewards  (all in [-1, 1])
-    reward_eat: float = 1.0
-    reward_step_alive: float = 0.01
-    reward_starvation: float = -1.0
+    reward_eat: float = 0.25
+    reward_step_alive: float = 0.001
+    reward_starvation: float = -0.25
     reward_clip_min: float = -1.0
     reward_clip_max: float = 1.0
 
@@ -28,12 +28,13 @@ class Config:
     obs_dim: int = 17            # 4 cells * 4 types one-hot + 1 hunger scalar
     action_dim: int = 4
     hidden_sizes: tuple = (64, 64)
-    history_len: int = 16       # recurrent context length
-    rnn_hidden_size: int = 64
-    rnn_layers: int = 1
-    post_rnn_hidden_size: int = 64
+    history_len: int = 64       # recurrent context length
+    rnn_hidden_size: int = 192
+    rnn_layers: int = 3
+    q_head_hidden_sizes: tuple = (128, 64)
 
     # ------------------------------------------------------------------ training
+    device: str = "auto"        # auto: cuda -> mps -> cpu
     lr: float = 1e-3
     gamma: float = 0.99
     batch_size: int = 64

@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from src.config import Config
+from src.device import select_torch_device
 
 
 class RecurrentQNetwork(nn.Module):
@@ -24,11 +25,13 @@ class RecurrentQNetwork(nn.Module):
             num_layers=cfg.rnn_layers,
             batch_first=True,
         )
-        self.head = nn.Sequential(
-            nn.Linear(cfg.rnn_hidden_size, cfg.post_rnn_hidden_size),
-            nn.ReLU(),
-            nn.Linear(cfg.post_rnn_hidden_size, cfg.action_dim),
-        )
+        head_layers = []
+        in_dim = cfg.rnn_hidden_size
+        for hidden_dim in cfg.q_head_hidden_sizes:
+            head_layers += [nn.Linear(in_dim, hidden_dim), nn.ReLU()]
+            in_dim = hidden_dim
+        head_layers.append(nn.Linear(in_dim, cfg.action_dim))
+        self.head = nn.Sequential(*head_layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if x.dim() == 2:
@@ -76,9 +79,7 @@ class DQNAgent:
 
     def __init__(self, cfg: Config, device: str | None = None) -> None:
         self.cfg = cfg
-        self.device = torch.device(
-            device if device else ("cuda" if torch.cuda.is_available() else "cpu")
-        )
+        self.device = select_torch_device(device or cfg.device)
 
         self.online_net = RecurrentQNetwork(cfg).to(self.device)
         self.target_net = RecurrentQNetwork(cfg).to(self.device)

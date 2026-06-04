@@ -10,10 +10,10 @@ A 2D discrete grid simulation where box agents (male/female) learn via a shared 
 - The episode ends when **all agents have starved** (civilization collapse) or the step cap is reached.
 - All agents share a single recurrent Q-network policy — learning is pooled across the whole population.
 - Agents can only see **4 cells directly ahead** of them (not behind, not sideways).
-- Each decision uses the agent's last **16 timesteps** so it can learn short-term movement patterns.
+- Each decision uses the agent's last **64 timesteps** so it can learn short-term movement patterns.
 - Gender is a first-class field, structured for future reproduction mechanics.
 
-## Network Input (`16 x 22`)
+## Network Input (`64 x 22`)
 
 The world still emits one 17-number observation per agent:
 
@@ -41,7 +41,7 @@ The previous-action vector is one-hot:
 | 3     | Previous action was turn right |
 | 4     | No previous action / episode start |
 
-At episode start, the first observation is repeated 16 times with the no-action marker. The network therefore receives a tensor shaped `16 x 22`, processes it with an LSTM, and outputs 4 Q-values.
+At episode start, the first observation is repeated 64 times with the no-action marker. The network therefore receives a tensor shaped `64 x 22`, processes it with a 3-layer LSTM (`hidden_size=192`), then maps the final hidden state through a `192 -> 128 -> 64 -> 4` Q-head.
 
 ## Action Space (4 discrete)
 
@@ -56,9 +56,9 @@ At episode start, the first observation is repeated 16 times with the no-action 
 
 | Event          | Reward |
 |----------------|--------|
-| Eat apple      | +1.0   |
-| Survive a step | +0.01  |
-| Starvation     | -1.0   |
+| Eat apple      | +0.25  |
+| Survive a step | +0.001 |
+| Starvation     | -0.25  |
 
 ## Setup
 
@@ -78,11 +78,30 @@ python main.py
 # Specify number of episodes
 python main.py --episodes 2000
 
+# Auto-pick the best PyTorch backend: CUDA -> Apple MPS -> CPU
+python main.py --device auto
+
+# Force Apple GPU through PyTorch's MPS backend (local Mac)
+python main.py --device mps
+
+# Force CUDA on an NVIDIA machine later
+python main.py --device cuda
+
 # Watch a trained model (no training, render only)
 python main.py --render --no-train --checkpoint checkpoints/dqn_ep500.pt
 ```
 
 Note: checkpoints created before the recurrent/LSTM update are not compatible with the current model architecture. Train a fresh checkpoint after this change.
+
+## GPU Backend
+
+This project stays on PyTorch so it can run on Apple GPU now and CUDA later without rewriting the RL code. The default `--device auto` selection order is:
+
+1. `cuda` if `torch.cuda.is_available()`
+2. `mps` if `torch.backends.mps.is_available()`
+3. `cpu` fallback
+
+On Apple Silicon this uses PyTorch's Metal/MPS backend, not a full rewrite to Apple's separate MLX framework. That keeps future CUDA runs straightforward.
 
 ## Project Structure
 
@@ -103,4 +122,4 @@ rl_world/
 
 ## Hyperparameters
 
-All tunable in `src/config.py` — grid size, agent count, apple count, hunger decay, history length, LSTM size/layers, epsilon schedule, L1/L2 regularization, learning rate, etc.
+All tunable in `src/config.py` — grid size, agent count, apple count, hunger decay, history length, LSTM size/layers, device backend, epsilon schedule, L1/L2 regularization, learning rate, etc.

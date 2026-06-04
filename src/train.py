@@ -30,6 +30,7 @@ def run_training(
     """
     world = GridWorld(cfg)
     dqn   = DQNAgent(cfg)
+    print(f"[train] Device: {dqn.device}")
 
     if checkpoint_path and os.path.isfile(checkpoint_path):
         print(f"[train] Loading checkpoint: {checkpoint_path}")
