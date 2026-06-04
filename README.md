@@ -88,6 +88,15 @@ python main.py --device mps
 # Force CUDA on an NVIDIA machine later
 python main.py --device cuda
 
+# Auto-pick precision from the chosen backend
+python main.py --device auto --precision auto
+
+# Force fp32 if mixed precision is unstable on a backend
+python main.py --device mps --precision fp32
+
+# Force CUDA bf16/fp16 when supported
+python main.py --device cuda --precision bf16
+
 # Watch a trained model (no training, render only)
 python main.py --render --no-train --checkpoint checkpoints/dqn_ep500.pt
 ```
@@ -104,6 +113,14 @@ This project stays on PyTorch so it can run on Apple GPU now and CUDA later with
 
 On Apple Silicon this uses PyTorch's Metal/MPS backend, not a full rewrite to Apple's separate MLX framework. That keeps future CUDA runs straightforward.
 
+Precision is also configurable with `--precision auto|fp32|fp16|bf16`. The default `auto` policy is:
+
+1. `cuda`: use `bf16` when `torch.cuda.is_bf16_supported()`, otherwise `fp16` with `GradScaler`
+2. `mps`: use `fp16` autocast
+3. `cpu`: keep `fp32`
+
+Model weights and checkpoints stay in fp32. Mixed precision is applied with PyTorch autocast during model forward/loss computation, which is safer than storing replay observations or model weights in half precision.
+
 ## Project Structure
 
 ```
@@ -114,7 +131,7 @@ rl_world/
 ├── src/
 │   ├── config.py        # All hyperparameters and world settings
 │   ├── agent.py         # Agent entity (pos, orientation, gender, hunger)
-│   ├── history.py       # Per-agent 16-step recurrent input history
+│   ├── history.py       # Per-agent 64-step recurrent input history
 │   ├── world.py         # GridWorld environment
 │   ├── dqn.py           # RecurrentQNetwork, ReplayBuffer, DQNAgent
 │   ├── render.py        # Pygame renderer
@@ -123,4 +140,4 @@ rl_world/
 
 ## Hyperparameters
 
-All tunable in `src/config.py` — grid size, agent count, apple count, hunger decay, history length, LSTM size/layers, device backend, epsilon schedule, L1/L2 regularization, learning rate, etc.
+All tunable in `src/config.py` — grid size, agent count, apple count, hunger decay, history length, LSTM size/layers, device backend, precision mode, epsilon schedule, L1/L2 regularization, learning rate, etc.

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import random
 from collections import deque
+from contextlib import nullcontext
 from typing import Tuple
 
 import numpy as np
@@ -11,7 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from src.config import Config
-from src.device import select_torch_device
+from src.device import resolve_torch_precision, select_torch_device
 
 
 class RecurrentQNetwork(nn.Module):
@@ -80,6 +81,7 @@ class DQNAgent:
     def __init__(self, cfg: Config, device: str | None = None) -> None:
         self.cfg = cfg
         self.device = select_torch_device(device or cfg.device)
+        self.precision = resolve_torch_precision(cfg.precision, self.device)
 
         self.online_net = RecurrentQNetwork(cfg).to(self.device)
         self.target_net = RecurrentQNetwork(cfg).to(self.device)
@@ -91,11 +93,21 @@ class DQNAgent:
             lr=cfg.lr,
             weight_decay=cfg.weight_decay,
         )
+        self.scaler = (
+            torch.amp.GradScaler("cuda", enabled=True)
+            if self.precision.use_grad_scaler
+            else None
+        )
 
         self.buffer = ReplayBuffer(cfg.buffer_size)
         self.total_steps = 0
         self.learn_steps = 0
         self.epsilon = cfg.epsilon_start
+
+    def _autocast_context(self):
+        if self.precision.dtype is None:
+            return nullcontext()
+        return torch.autocast(device_type=self.device.type, dtype=self.precision.dtype)
 
     def act(self, state_seq: np.ndarray) -> int:
         """Epsilon-greedy action selection for a single sequence."""
@@ -116,7 +128,7 @@ class DQNAgent:
     def act_greedy_batch(self, state_batch: np.ndarray) -> list[int]:
         """Pure greedy action selection for batched agent histories."""
         seq_t = torch.tensor(state_batch, dtype=torch.float32, device=self.device)
-        with torch.no_grad():
+        with torch.no_grad(), self._autocast_context():
             q_vals = self.online_net(seq_t)
         return [int(action) for action in q_vals.argmax(dim=1).tolist()]
 
@@ -157,20 +169,28 @@ class DQNAgent:
         next_state_seq = next_state_seq.to(self.device)
         dones = dones.to(self.device)
 
-        q_vals = self.online_net(state_seq).gather(1, actions.unsqueeze(1)).squeeze(1)
+        with self._autocast_context():
+            q_vals = self.online_net(state_seq).gather(1, actions.unsqueeze(1)).squeeze(1)
 
-        with torch.no_grad():
-            next_q = self.target_net(next_state_seq).max(dim=1).values
-            td_target = rewards + self.cfg.gamma * next_q * (1.0 - dones)
+            with torch.no_grad():
+                next_q = self.target_net(next_state_seq).max(dim=1).values
+                td_target = rewards + self.cfg.gamma * next_q * (1.0 - dones)
 
-        td_loss = F.smooth_l1_loss(q_vals, td_target)
+            td_loss = F.smooth_l1_loss(q_vals.float(), td_target.float())
         l1_penalty = sum(p.abs().sum() for p in self.online_net.parameters())
         loss = td_loss + self.cfg.l1_lambda * l1_penalty
 
         self.optimizer.zero_grad()
-        loss.backward()
-        nn.utils.clip_grad_norm_(self.online_net.parameters(), max_norm=10.0)
-        self.optimizer.step()
+        if self.scaler is not None:
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            nn.utils.clip_grad_norm_(self.online_net.parameters(), max_norm=10.0)
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        else:
+            loss.backward()
+            nn.utils.clip_grad_norm_(self.online_net.parameters(), max_norm=10.0)
+            self.optimizer.step()
 
         self.learn_steps += 1
         if self.learn_steps % self.cfg.target_sync_every == 0:
@@ -189,6 +209,7 @@ class DQNAgent:
                 "total_steps": self.total_steps,
                 "learn_steps": self.learn_steps,
                 "epsilon": self.epsilon,
+                "precision": self.precision.name,
             },
             path,
         )

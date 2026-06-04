@@ -35,6 +35,7 @@ class Config:
 
     # ------------------------------------------------------------------ training
     device: str = "auto"        # auto: cuda -> mps -> cpu
+    precision: str = "auto"     # auto: cuda bf16/fp16, mps fp16, cpu fp32
     lr: float = 1e-3
     gamma: float = 0.99
     batch_size: int = 64
