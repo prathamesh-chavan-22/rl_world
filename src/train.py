@@ -7,6 +7,7 @@ from typing import Deque, List, Optional
 
 from src.config import Config
 from src.dqn import DQNAgent
+from src.history import SequenceHistory
 from src.world import GridWorld
 
 
@@ -59,8 +60,10 @@ def run_training(
         # obs_list is indexed in world.agents order
         agents = world.agents
 
-        # map agent.id -> latest obs
-        obs_map = {a.id: obs_list[i] for i, a in enumerate(agents)}
+        history_map = {
+            a.id: SequenceHistory.from_initial_obs(obs_list[i], cfg)
+            for i, a in enumerate(agents)
+        }
 
         ep_rewards: List[float] = []
 
@@ -68,11 +71,11 @@ def run_training(
             # --- collect actions for all alive agents ---
             actions = {}
             for agent in world.alive_agents():
-                obs = obs_map[agent.id]
+                state_seq = history_map[agent.id].as_array()
                 if no_train:
-                    action = dqn.act_greedy(obs)
+                    action = dqn.act_greedy(state_seq)
                 else:
-                    action = dqn.act(obs)
+                    action = dqn.act(state_seq)
                 actions[agent.id] = action
 
             # --- step world ---
@@ -83,16 +86,18 @@ def run_training(
                 if not (agent.id in actions):
                     # already dead before this step
                     continue
-                obs      = obs_map[agent.id]
+                state_seq = history_map[agent.id].as_array()
                 action   = actions[agent.id]
                 reward   = rewards[i]
                 next_obs = next_obs_list[i]
                 done     = dones[i]
+                next_history = history_map[agent.id].copy().append(next_obs, action)
+                next_state_seq = next_history.as_array()
 
                 if not no_train:
-                    dqn.push(obs, action, reward, next_obs, done)
+                    dqn.push(state_seq, action, reward, next_state_seq, done)
 
-                obs_map[agent.id] = next_obs
+                history_map[agent.id] = next_history
                 ep_rewards.append(reward)
 
             if not no_train:
@@ -106,7 +111,6 @@ def run_training(
 
             # --- optional render ---
             if renderer is not None:
-                alive = not world.is_done()
                 keep_open = renderer.draw(
                     world,
                     episode,

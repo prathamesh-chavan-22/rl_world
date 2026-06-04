@@ -1,3 +1,4 @@
 torch>=2.2.0
 pygame>=2.5.0
 numpy>=1.26.0
+pytest>=8.0.0

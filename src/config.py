@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -28,6 +28,10 @@ class Config:
     obs_dim: int = 17            # 4 cells * 4 types one-hot + 1 hunger scalar
     action_dim: int = 4
     hidden_sizes: tuple = (64, 64)
+    history_len: int = 16       # recurrent context length
+    rnn_hidden_size: int = 64
+    rnn_layers: int = 1
+    post_rnn_hidden_size: int = 64
 
     # ------------------------------------------------------------------ training
     lr: float = 1e-3
@@ -56,3 +60,13 @@ class Config:
     cell_size: int = 32          # pixels per grid cell
     fps: int = 30
     render_hunger_bar: bool = True
+
+    @property
+    def prev_action_dim(self) -> int:
+        """One-hot action size plus a final no-action/start marker."""
+        return self.action_dim + 1
+
+    @property
+    def rnn_input_dim(self) -> int:
+        """Per-timestep recurrent input: observation + previous action."""
+        return self.obs_dim + self.prev_action_dim
